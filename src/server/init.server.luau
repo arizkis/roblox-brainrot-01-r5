@@ -1,15 +1,30 @@
--- Brainrot Bazaar server entrypoint: build the world, then announce readiness.
--- The game loops (conveyor, income, tsunami, locks, rebirth) land on top of this foundation.
+-- Brainrot Bazaar server entrypoint: build the world, start the core loop
+-- (conveyor spawns, income tick, carry/delivery), and bind every player to a session.
 
+local Players = game:GetService("Players")
 local WorldBuilder = require(script.Parent.WorldBuilder)
-local CharacterFactory = require(script.Parent.CharacterFactory)
-local GameState = require(script.Parent.GameState)
+local PlayerSessions = require(script.Parent.PlayerSessions)
+local Economy = require(script.Parent.Economy)
+local Conveyor = require(script.Parent.Conveyor)
+local Carry = require(script.Parent.Carry)
 
 local world = WorldBuilder.BuildWorld()
 
+PlayerSessions.Init(world)
+Economy.Init(world)
+Conveyor.Init(world)
+Carry.Init(world)
+
+Conveyor.SetBuyHandler(Carry.BuyBeltCharacter)
+Conveyor.StartConveyor()
+Economy.StartIncomeLoop()
+
+for _, player in Players:GetPlayers() do
+	PlayerSessions.BindPlayer(player)
+end
+
 print(string.format(
-	"[BrainrotBazaar] ready: %d booths, %d pads each, conveyor %.0f studs — factory and state home loaded",
+	"[BrainrotBazaar] ready: %d booths, conveyor %.0f studs, core loop running (spawns 4s, income 1s)",
 	#world.Booths,
-	#world.Booths[1].Pads,
 	world.Conveyor.Length
 ))

@@ -214,6 +214,7 @@ function CharacterFactory.BuildCharacter(recipe, mutation): Model
 
 	local root = buildBody(model, recipe)
 	model.PrimaryPart = root
+	model.WorldPivot = CFrame.identity -- pivot at the character's feet, so PivotTo places it on surfaces
 	addFeatures(model, root, recipe)
 
 	for _, part in model:GetChildren() do

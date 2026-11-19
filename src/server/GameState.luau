@@ -10,6 +10,9 @@
 --   Rebirths: number
 --   Multiplier: number                 rebirth income multiplier (1.5 ^ Rebirths)
 --   Lock: { Active: boolean, Until: number, CooldownUntil: number }   booth lock, os.clock() times
+--   Carrying: CarriedEntry?            the character being carried, nil when empty-handed
+--     CarriedEntry = { CharacterId: string, Model: Model, Recipe: string, Tier: string,
+--                      Mutation: string?, IncomePerSec: number, Price: number, Stolen: boolean }
 --   Index: { [recipeName]: { Found: boolean, Mutation: string? } }    collection index finds
 --   Quests: { [questId]: number }      quest progress counters
 --   Upgrades: { [upgradeId]: number }  upgrade levels
@@ -29,6 +32,7 @@ local function newState()
 		Rebirths = 0,
 		Multiplier = 1,
 		Lock = { Active = false, Until = 0, CooldownUntil = 0 },
+		Carrying = nil,
 		Index = {},
 		Quests = {},
 		Upgrades = {},
@@ -135,6 +139,15 @@ function GameState.SetLock(player: Player, active: boolean, untilTime: number, c
 	lock.Active = active
 	lock.Until = untilTime
 	lock.CooldownUntil = cooldownUntil
+end
+
+-- Carrying
+function GameState.GetCarrying(player: Player)
+	return GameState.Get(player).Carrying
+end
+
+function GameState.SetCarrying(player: Player, entry)
+	GameState.Get(player).Carrying = entry
 end
 
 -- Collection index
