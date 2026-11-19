@@ -206,6 +206,11 @@ function StealLock.Init(world)
 						lowerDome(booth)
 						setStealPromptsEnabled(booth, true)
 					end
+					Remotes.LockState:FireClient(owner, {
+						Active = StealLock.IsLocked(booth),
+						TimeLeft = StealLock.LockTimeLeft(booth),
+						CooldownLeft = math.max(0, lock.CooldownUntil - os.clock()),
+					})
 					if prompt then
 						if StealLock.IsLocked(booth) then
 							prompt.ActionText = string.format("Locked %ds", math.ceil(StealLock.LockTimeLeft(booth)))

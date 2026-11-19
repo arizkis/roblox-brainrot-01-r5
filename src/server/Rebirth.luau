@@ -83,6 +83,7 @@ function Rebirth.Init(world)
 				local prompt = booth.Sign:FindFirstChild("RebirthPrompt")
 				if owner and prompt then
 					prompt.ObjectText = string.format("Rebirth $%d", Rebirth.RebirthCost(owner))
+					owner:SetAttribute("RebirthCost", Rebirth.RebirthCost(owner))
 				end
 			end
 		end

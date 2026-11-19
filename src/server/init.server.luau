@@ -34,6 +34,30 @@ Conveyor.SetBuyHandler(Carry.BuyBeltCharacter)
 Tsunami.SetDropHandler(Carry.DropCarried)
 Quests.SetPayHandler(Economy.AddCash)
 
+-- Client request surface (rail buttons, shop, book, contracts).
+local Remotes = require(script.Parent.Remotes)
+local IndexBook = require(script.Parent.IndexBook)
+Remotes.RequestLock.OnServerEvent:Connect(function(player)
+	StealLock.RequestLock(player)
+end)
+Remotes.RequestRebirth.OnServerEvent:Connect(function(player)
+	Rebirth.RequestRebirth(player)
+end)
+Remotes.BuyUpgrade.OnServerEvent:Connect(function(player, trackId)
+	if type(trackId) == "string" then
+		Upgrades.BuyUpgrade(player, trackId)
+	end
+end)
+Remotes.GetIndex.OnServerInvoke = function(player)
+	return IndexBook.FoundSet(player)
+end
+Remotes.GetQuests.OnServerInvoke = function(player)
+	return Quests.ActiveQuests(player)
+end
+Remotes.GetUpgrades.OnServerInvoke = function(player)
+	return Upgrades.UpgradeState(player)
+end
+
 Conveyor.StartConveyor()
 Economy.StartIncomeLoop()
 Tsunami.StartTsunamiCycle()

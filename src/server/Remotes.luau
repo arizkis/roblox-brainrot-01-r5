@@ -15,10 +15,25 @@ local function makeEvent(name: string): RemoteEvent
 	return event
 end
 
+local function makeFunction(name: string): RemoteFunction
+	local func = Instance.new("RemoteFunction")
+	func.Name = name
+	func.Parent = folder
+	return func
+end
+
 return {
 	Notify = makeEvent("Notify"),
 	CashPopup = makeEvent("CashPopup"),
 	Banner = makeEvent("Banner"), -- FireAllClients(text): big top banner (events, tsunami, countdown)
 	Toast = makeEvent("Toast"), -- FireClient(player, text): small corner toast (quests, index)
 	Celebrate = makeEvent("Celebrate"), -- FireClient(player, rebirths): rebirth celebration
+	LockState = makeEvent("LockState"), -- FireClient(owner, {Active, TimeLeft, CooldownLeft})
+	QuestUpdate = makeEvent("QuestUpdate"), -- FireClient(player, ActiveQuests snapshot)
+	RequestLock = makeEvent("RequestLock"), -- client -> server
+	RequestRebirth = makeEvent("RequestRebirth"), -- client -> server
+	BuyUpgrade = makeEvent("BuyUpgrade"), -- client -> server(trackId)
+	GetIndex = makeFunction("GetIndex"), -- client -> IndexBook.FoundSet
+	GetQuests = makeFunction("GetQuests"), -- client -> Quests.ActiveQuests
+	GetUpgrades = makeFunction("GetUpgrades"), -- client -> Upgrades.UpgradeState
 }

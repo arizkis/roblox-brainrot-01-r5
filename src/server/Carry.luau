@@ -155,6 +155,7 @@ function Carry.AttachCarried(player: Player, model: Model)
 	}
 	model:SetAttribute("BeltCharacter", false)
 	GameState.SetCarrying(player, entry)
+	player:SetAttribute("Carrying", entry.Recipe)
 	if entry.Stolen then
 		notify(player, "That one was stolen — you're moving slower!")
 	end
@@ -185,6 +186,7 @@ function Carry.DeliverToPad(player: Player): boolean
 			stealPrompt.Enabled = true
 		end
 		GameState.SetCarrying(player, nil)
+		player:SetAttribute("Carrying", "")
 		setWalkSpeed(player, BASE_WALK_SPEED + 2 * GameState.GetUpgrade(player, "swift"))
 		PlayerSessions.RefreshAttributes(player)
 		notify(player, home.Recipe .. " is back on its pad")
@@ -204,6 +206,7 @@ function Carry.DeliverToPad(player: Player): boolean
 	end
 	if Economy.PlaceOnPad(player, entry.Model, freePad) then
 		GameState.SetCarrying(player, nil)
+		player:SetAttribute("Carrying", "")
 		setWalkSpeed(player, BASE_WALK_SPEED + 2 * GameState.GetUpgrade(player, "swift"))
 		return true
 	end
@@ -217,6 +220,7 @@ function Carry.DropCarried(player: Player, reason: string?)
 		return nil
 	end
 	GameState.SetCarrying(player, nil)
+	player:SetAttribute("Carrying", "")
 	if entry.ReturnEntry then
 		-- A lost return-carry releases its original pad for good.
 		local home = entry.ReturnEntry

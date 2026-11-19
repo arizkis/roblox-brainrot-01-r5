@@ -32,6 +32,10 @@ end
 
 local payHandler: ((Player, number) -> ())? = nil
 
+local function push(player: Player)
+	Remotes.QuestUpdate:FireClient(player, Quests.ActiveQuests(player))
+end
+
 function Quests.SetPayHandler(handler: (Player, number) -> ())
 	payHandler = handler
 end
@@ -60,6 +64,7 @@ function Quests.AssignQuests(player: Player)
 			table.insert(quests.Active, quest.id)
 		end
 	end
+	push(player)
 end
 
 function Quests.Init()
@@ -94,6 +99,7 @@ function Quests.CompleteQuest(player: Player, quest)
 		table.insert(quests.Active, replacement.id)
 	end
 	PlayerSessions.RefreshAttributes(player)
+	push(player)
 end
 
 -- Owning systems report progress here; amount semantics depend on goalType
@@ -110,6 +116,7 @@ function Quests.ReportProgress(player: Player, goalType: string, amount: number)
 			end
 		end
 	end
+	push(player)
 end
 
 return Quests
