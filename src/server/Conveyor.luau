@@ -23,6 +23,8 @@ local MAX_ON_BELT = 14
 local BASE_ODDS = { 55, 27, 12, 4.5, 1.2, 0.25, 0.05 } -- Common..Divine at band 0
 
 Conveyor.BeltRush = false
+Conveyor.MutationStorm = false
+Conveyor.BeltSpeedMultiplier = 1
 
 function Conveyor.Init(world)
 	lane = world.Conveyor
@@ -37,6 +39,14 @@ end
 
 function Conveyor.SetBeltRush(active: boolean)
 	Conveyor.BeltRush = active
+end
+
+function Conveyor.SetMutationStorm(active: boolean)
+	Conveyor.MutationStorm = active
+end
+
+function Conveyor.SetBeltSpeedMultiplier(multiplier: number)
+	Conveyor.BeltSpeedMultiplier = multiplier
 end
 
 -- One server band = highest rebirth count online, capped at 6 shifts.
@@ -76,6 +86,32 @@ local function pickTier(band: number)
 	return GameConfig.Tiers[#GameConfig.Tiers]
 end
 
+-- Lucky Charm: the best luck online boosts every spawn's mutation chance.
+local function luckBonus(): number
+	local bonus = 0
+	for _, player in Players:GetPlayers() do
+		bonus = math.max(bonus, 0.02 * GameState.GetUpgrade(player, "lucky"))
+	end
+	return bonus
+end
+
+-- MutationStorm: guaranteed mutation with weights shifted toward the rare end.
+local STORM_WEIGHTS = { Golden = 20, Diamond = 22, Glitch = 20, Rainbow = 16, Cosmic = 12, Void = 10 }
+local function stormMutation()
+	local total = 0
+	for _, mutation in GameConfig.Mutations do
+		total += STORM_WEIGHTS[mutation.name]
+	end
+	local pick = math.random() * total
+	for _, mutation in GameConfig.Mutations do
+		pick -= STORM_WEIGHTS[mutation.name]
+		if pick <= 0 then
+			return mutation
+		end
+	end
+	return GameConfig.Mutations[#GameConfig.Mutations]
+end
+
 function Conveyor.SpawnBrainrotOnBelt(): Model?
 	if not lane or #riding >= MAX_ON_BELT then
 		return nil
@@ -83,7 +119,7 @@ function Conveyor.SpawnBrainrotOnBelt(): Model?
 	local tier = pickTier(Conveyor.CurrentTierBand())
 	local recipes = GameConfig.CastByTier[tier.name]
 	local recipe = recipes[math.random(1, #recipes)]
-	local mutation = GameConfig.RollMutation(tier.name)
+	local mutation = if Conveyor.MutationStorm then stormMutation() else GameConfig.RollMutation(tier.name, nil, luckBonus())
 
 	local model = CharacterFactory.BuildCharacter(recipe, mutation)
 	model:SetAttribute("CharacterId", HttpService:GenerateGUID(false))
@@ -131,7 +167,7 @@ function Conveyor.StartConveyor()
 	RunService.Heartbeat:Connect(function(dt)
 		for i = #riding, 1, -1 do
 			local entry = riding[i]
-			entry.Offset += RIDE_SPEED * dt
+			entry.Offset += RIDE_SPEED * Conveyor.BeltSpeedMultiplier * dt
 			if entry.Offset >= lane.Length then
 				entry.Model:Destroy()
 				table.remove(riding, i)

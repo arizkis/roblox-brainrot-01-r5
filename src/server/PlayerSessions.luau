@@ -37,6 +37,11 @@ function PlayerSessions.GetBoothIndex(player: Player): number?
 	return playerBooth[player]
 end
 
+-- Who owns this booth (nil when unclaimed).
+function PlayerSessions.GetBoothOwner(boothIndex: number): Player?
+	return boothOwners[boothIndex]
+end
+
 -- Claim the first free booth for the player. Returns the booth table or nil when all are taken.
 function PlayerSessions.ClaimBooth(player: Player)
 	if playerBooth[player] then
@@ -71,11 +76,24 @@ function PlayerSessions.RefreshAttributes(player: Player)
 	player:SetAttribute("IndexFound", indexFound)
 end
 
+-- Swift Feet: base walk speed 16 + 2 per level, applied on every spawn.
+local function applyWalkSpeed(player: Player, character: Model)
+	local humanoid = character:WaitForChild("Humanoid", 5)
+	if humanoid then
+		humanoid.WalkSpeed = 16 + 2 * GameState.GetUpgrade(player, "swift")
+	end
+end
+
 function PlayerSessions.BindPlayer(player: Player)
 	GameState.Get(player) -- creates the entry: cash 50, multiplier 1, 6 pads
 	PlayerSessions.ClaimBooth(player)
 	PlayerSessions.RefreshAttributes(player)
-	if not player.Character then
+	player.CharacterAdded:Connect(function(character)
+		applyWalkSpeed(player, character)
+	end)
+	if player.Character then
+		applyWalkSpeed(player, player.Character)
+	else
 		player:LoadCharacter()
 	end
 end

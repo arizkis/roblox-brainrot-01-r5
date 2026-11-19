@@ -6,15 +6,17 @@
 --   PadsOwned: number                  active pads (StartPads..MaxPads)
 --   Placed: { PlacedCharacter }        characters on the player's pads
 --     PlacedCharacter = { Recipe: string, Tier: string, Mutation: string?, IncomePerSec: number,
---                         BoothIndex: number, PadIndex: number, Model: Model? }
+--                         BoothIndex: number, PadIndex: number, Model: Model?,
+--                         Inactive: boolean?, Dropped: boolean? }  -- Inactive: raccoon-stolen, not earning
 --   Rebirths: number
 --   Multiplier: number                 rebirth income multiplier (1.5 ^ Rebirths)
+--   TotalEarned: number                lifetime cash earned (quests track this)
 --   Lock: { Active: boolean, Until: number, CooldownUntil: number }   booth lock, os.clock() times
 --   Carrying: CarriedEntry?            the character being carried, nil when empty-handed
 --     CarriedEntry = { CharacterId: string, Model: Model, Recipe: string, Tier: string,
 --                      Mutation: string?, IncomePerSec: number, Price: number, Stolen: boolean }
 --   Index: { [recipeName]: { Found: boolean, Mutation: string? } }    collection index finds
---   Quests: { [questId]: number }      quest progress counters
+--   Quests: { Active: { string }, Progress: { [questId]: number } }  3 active contracts + counters
 --   Upgrades: { [upgradeId]: number }  upgrade levels
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -31,10 +33,11 @@ local function newState()
 		Placed = {},
 		Rebirths = 0,
 		Multiplier = 1,
+		TotalEarned = 0,
 		Lock = { Active = false, Until = 0, CooldownUntil = 0 },
 		Carrying = nil,
 		Index = {},
-		Quests = {},
+		Quests = { Active = {}, Progress = {} },
 		Upgrades = {},
 	}
 end
@@ -65,6 +68,13 @@ end
 function GameState.AddCash(player: Player, amount: number)
 	local state = GameState.Get(player)
 	state.Cash = math.max(0, state.Cash + amount)
+	if amount > 0 then
+		state.TotalEarned += amount
+	end
+end
+
+function GameState.GetTotalEarned(player: Player): number
+	return GameState.Get(player).TotalEarned
 end
 
 -- Pads
@@ -98,10 +108,13 @@ function GameState.RemoveCharacter(player: Player, boothIndex: number, padIndex:
 end
 
 -- Total income rate before rebirth multiplier; the rebirth cost is based on this.
+-- Raccoon-stolen (Inactive) characters do not earn.
 function GameState.TotalIncomeRate(player: Player): number
 	local total = 0
 	for _, entry in GameState.Get(player).Placed do
-		total += entry.IncomePerSec
+		if not entry.Inactive then
+			total += entry.IncomePerSec
+		end
 	end
 	return total
 end
@@ -115,13 +128,13 @@ function GameState.GetMultiplier(player: Player): number
 	return GameState.Get(player).Multiplier
 end
 
+-- Rebirth: +1 rebirth, multiplier 1.5^rebirths, +1 pad up to MaxPads.
+-- Cash (already deducted by Rebirth) and placed characters are KEPT.
 function GameState.DoRebirth(player: Player)
 	local state = GameState.Get(player)
 	state.Rebirths += 1
 	state.Multiplier = GameConfig.Economy.RebirthIncomeMultiplier ^ state.Rebirths
-	state.Cash = GameConfig.Economy.StartCash
-	state.Placed = {}
-	state.PadsOwned = GameConfig.Economy.StartPads
+	state.PadsOwned = math.min(GameConfig.Economy.MaxPads, state.PadsOwned + 1)
 end
 
 -- Booth lock
@@ -171,11 +184,11 @@ end
 
 -- Quests
 function GameState.GetQuestProgress(player: Player, questId: string): number
-	return GameState.Get(player).Quests[questId] or 0
+	return GameState.Get(player).Quests.Progress[questId] or 0
 end
 
 function GameState.SetQuestProgress(player: Player, questId: string, value: number)
-	GameState.Get(player).Quests[questId] = value
+	GameState.Get(player).Quests.Progress[questId] = value
 end
 
 -- Upgrades

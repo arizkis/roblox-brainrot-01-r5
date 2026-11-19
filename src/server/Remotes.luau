@@ -18,4 +18,7 @@ end
 return {
 	Notify = makeEvent("Notify"),
 	CashPopup = makeEvent("CashPopup"),
+	Banner = makeEvent("Banner"), -- FireAllClients(text): big top banner (events, tsunami, countdown)
+	Toast = makeEvent("Toast"), -- FireClient(player, text): small corner toast (quests, index)
+	Celebrate = makeEvent("Celebrate"), -- FireClient(player, rebirths): rebirth celebration
 }

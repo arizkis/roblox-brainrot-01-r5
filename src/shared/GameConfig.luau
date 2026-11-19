@@ -98,7 +98,8 @@ end
 
 local mutationByName = {}
 local totalWeight = 0
-for _, mutation in ipairs(GameConfig.Mutations) do
+for index, mutation in ipairs(GameConfig.Mutations) do
+	mutation.index = index
 	mutationByName[mutation.name] = mutation
 	totalWeight += mutation.weight
 end
@@ -123,13 +124,14 @@ end
 
 -- Roll a mutation for a spawning character of the given tier. Returns a mutation table or nil.
 -- rng is optional (defaults to math.random); pass a Random.new() for seeded rolls.
-function GameConfig.RollMutation(tierName: string, rng: Random?)
+-- chanceBonus adds to the tier's base chance (Lucky Charm upgrades).
+function GameConfig.RollMutation(tierName: string, rng: Random?, chanceBonus: number?)
 	local tier = tierByName[tierName]
 	if not tier then
 		return nil
 	end
 	local roll = if rng then rng:NextNumber() else math.random()
-	if roll >= tier.mutationChance then
+	if roll >= tier.mutationChance + (chanceBonus or 0) then
 		return nil
 	end
 	local pick = (if rng then rng:NextNumber() else math.random()) * totalWeight

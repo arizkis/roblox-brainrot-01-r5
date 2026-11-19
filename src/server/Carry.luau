@@ -10,12 +10,15 @@ local Economy = require(script.Parent.Economy)
 local Conveyor = require(script.Parent.Conveyor)
 local PlayerSessions = require(script.Parent.PlayerSessions)
 local Remotes = require(script.Parent.Remotes)
+local Quests = require(script.Parent.Quests)
+local IndexBook = require(script.Parent.IndexBook)
 
 local Carry = {}
 
 local BASE_WALK_SPEED = 16
 local CARRY_HEIGHT = 3 -- studs above the head root
 local DELIVER_RADIUS = 3.5
+local booths = nil -- world booths, set by Init
 
 local function notify(player: Player, message: string)
 	Remotes.Notify:FireClient(player, message)
@@ -39,6 +42,7 @@ local function padIsFree(player: Player, boothIndex: number, padIndex: number): 
 end
 
 function Carry.Init(world)
+	booths = world.Booths
 	-- A "Place" prompt on each booth platform, alongside touch-to-place.
 	for _, booth in world.Booths do
 		local prompt = Instance.new("ProximityPrompt")
@@ -67,7 +71,10 @@ function Carry.Init(world)
 				continue
 			end
 			entry.Model:PivotTo(CFrame.new(root.Position + Vector3.new(0, CARRY_HEIGHT, 0)))
-			setWalkSpeed(player, if entry.Stolen then BASE_WALK_SPEED * GameConfig.Economy.StolenCarrySpeedFactor else BASE_WALK_SPEED)
+			-- Swift Feet raises the base; Soft Hands speeds the carry; stolen cargo slows to 0.75x.
+			local base = BASE_WALK_SPEED + 2 * GameState.GetUpgrade(player, "swift")
+			local speed = base * (1 + 0.08 * GameState.GetUpgrade(player, "soft"))
+			setWalkSpeed(player, if entry.Stolen then speed * GameConfig.Economy.StolenCarrySpeedFactor else speed)
 
 			local booth = PlayerSessions.GetBooth(player)
 			if booth then
@@ -117,6 +124,22 @@ function Carry.BuyBeltCharacter(player: Player, beltCharacter: Model)
 	GameState.RecordFind(player, beltCharacter:GetAttribute("Recipe"), beltCharacter:GetAttribute("Mutation"))
 	Carry.AttachCarried(player, beltCharacter)
 	PlayerSessions.RefreshAttributes(player)
+
+	-- Contract and index hooks at the moment of ownership.
+	IndexBook.RecordIndexFind(player, beltCharacter:GetAttribute("Recipe"))
+	local tier = GameConfig.GetTier(beltCharacter:GetAttribute("Tier"))
+	if tier and tier.index >= 3 then
+		Quests.ReportProgress(player, "buy_rare", 1)
+	end
+	local mutationName = beltCharacter:GetAttribute("Mutation")
+	if mutationName then
+		Quests.ReportProgress(player, "buy_mutated", 1)
+		local mutation = GameConfig.GetMutation(mutationName)
+		local glitchIndex = GameConfig.GetMutation("Glitch").index
+		if mutation and mutation.index >= glitchIndex then
+			Quests.ReportProgress(player, "catch_glitch", 1)
+		end
+	end
 end
 
 function Carry.AttachCarried(player: Player, model: Model)
@@ -138,6 +161,7 @@ function Carry.AttachCarried(player: Player, model: Model)
 end
 
 -- Place the carried character on the first free pad of the player's booth.
+-- A raccoon-dropped character (ReturnEntry) goes back to its original pad instead.
 function Carry.DeliverToPad(player: Player): boolean
 	local entry = GameState.GetCarrying(player)
 	if not entry then
@@ -148,6 +172,25 @@ function Carry.DeliverToPad(player: Player): boolean
 		notify(player, "You don't have a booth yet")
 		return false
 	end
+
+	if entry.ReturnEntry then
+		local home = entry.ReturnEntry
+		local homeBooth = booths[home.BoothIndex]
+		home.Inactive = false
+		home.Dropped = nil
+		home.Model.Parent = homeBooth.Root.Parent
+		home.Model:PivotTo(homeBooth.Pads[home.PadIndex])
+		local stealPrompt = home.Model.PrimaryPart and home.Model.PrimaryPart:FindFirstChild("StealPrompt")
+		if stealPrompt then
+			stealPrompt.Enabled = true
+		end
+		GameState.SetCarrying(player, nil)
+		setWalkSpeed(player, BASE_WALK_SPEED + 2 * GameState.GetUpgrade(player, "swift"))
+		PlayerSessions.RefreshAttributes(player)
+		notify(player, home.Recipe .. " is back on its pad")
+		return true
+	end
+
 	local freePad = nil
 	for padIndex = 1, GameState.GetPadsOwned(player) do
 		if padIsFree(player, booth.Index, padIndex) then
@@ -161,7 +204,7 @@ function Carry.DeliverToPad(player: Player): boolean
 	end
 	if Economy.PlaceOnPad(player, entry.Model, freePad) then
 		GameState.SetCarrying(player, nil)
-		setWalkSpeed(player, BASE_WALK_SPEED)
+		setWalkSpeed(player, BASE_WALK_SPEED + 2 * GameState.GetUpgrade(player, "swift"))
 		return true
 	end
 	return false
@@ -174,10 +217,19 @@ function Carry.DropCarried(player: Player, reason: string?)
 		return nil
 	end
 	GameState.SetCarrying(player, nil)
+	if entry.ReturnEntry then
+		-- A lost return-carry releases its original pad for good.
+		local home = entry.ReturnEntry
+		local owner = PlayerSessions.GetBoothOwner(home.BoothIndex)
+		if owner then
+			GameState.RemoveCharacter(owner, home.BoothIndex, home.PadIndex)
+			PlayerSessions.RefreshAttributes(owner)
+		end
+	end
 	if entry.Model then
 		entry.Model:Destroy()
 	end
-	setWalkSpeed(player, BASE_WALK_SPEED)
+	setWalkSpeed(player, BASE_WALK_SPEED + 2 * GameState.GetUpgrade(player, "swift"))
 	local message = "You dropped your carry"
 	if reason == "tsunami" then
 		message = "The tsunami swept your carry away!"

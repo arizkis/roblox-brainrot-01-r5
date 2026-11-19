@@ -9,20 +9,16 @@ local GameConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild
 local GameState = require(script.Parent.GameState)
 local PlayerSessions = require(script.Parent.PlayerSessions)
 local Remotes = require(script.Parent.Remotes)
+local EventDirector = require(script.Parent.EventDirector)
+local Quests = require(script.Parent.Quests)
+local IndexBook = require(script.Parent.IndexBook)
 
 local Economy = {}
 
 local booths = nil -- world booths, set by Init
 
--- Server-wide event income multiplier (Belt Rush / future events set this).
-Economy.EventMultiplier = 1
-
 function Economy.Init(world)
 	booths = world.Booths
-end
-
-function Economy.SetEventMultiplier(multiplier: number)
-	Economy.EventMultiplier = multiplier
 end
 
 function Economy.CanAfford(player: Player, price: number): boolean
@@ -42,6 +38,9 @@ end
 function Economy.AddCash(player: Player, amount: number)
 	GameState.AddCash(player, amount)
 	PlayerSessions.RefreshAttributes(player)
+	if amount > 0 then
+		Quests.ReportProgress(player, "earn", amount)
+	end
 end
 
 -- Record a carried character on the player's pad and start its income.
@@ -71,6 +70,16 @@ function Economy.PlaceOnPad(player: Player, characterModel: Model, padIndex: num
 	characterModel:PivotTo(booth.Pads[padIndex])
 	GameState.PlaceCharacter(player, entry)
 	PlayerSessions.RefreshAttributes(player)
+
+	IndexBook.RecordIndexFind(player, entry.Recipe)
+	Quests.ReportProgress(player, "place", 1)
+	local tier = GameConfig.GetTier(entry.Tier)
+	if tier and tier.index >= 5 then
+		Quests.ReportProgress(player, "own_legendary", 1)
+	end
+	if #GameState.GetPlaced(player) >= GameState.GetPadsOwned(player) then
+		Quests.ReportProgress(player, "fill_pads", 1)
+	end
 	return true
 end
 
@@ -90,17 +99,23 @@ function Economy.RemovePlaced(player: Player, characterId: string)
 	return nil
 end
 
--- One income tick: every placed character pays its owner income x rebirth multiplier x event multiplier.
+-- One income tick: every placed character pays its owner
+-- income x rebirth multiplier x event multiplier x Greedy Gloves x Pad Polish.
+-- Raccoon-stolen (Inactive) characters do not earn.
 function Economy.TickIncome()
 	for _, player in Players:GetPlayers() do
 		local state = GameState.Get(player)
+		local greedy = 1 + 0.10 * GameState.GetUpgrade(player, "greedy")
+		local polish = 1 + 0.05 * GameState.GetUpgrade(player, "polish")
 		local total = 0
 		for _, entry in state.Placed do
-			local gain = entry.IncomePerSec * state.Multiplier * Economy.EventMultiplier
-			total += gain
-			local booth = booths[entry.BoothIndex]
-			if booth then
-				Remotes.CashPopup:FireAllClients(booth.Pads[entry.PadIndex].Position, gain)
+			if not entry.Inactive then
+				local gain = entry.IncomePerSec * state.Multiplier * EventDirector.IncomeMultiplier() * greedy * polish
+				total += gain
+				local booth = booths[entry.BoothIndex]
+				if booth then
+					Remotes.CashPopup:FireAllClients(booth.Pads[entry.PadIndex].Position, gain)
+				end
 			end
 		end
 		if total > 0 then
