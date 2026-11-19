@@ -112,14 +112,29 @@ local function stormMutation()
 	return GameConfig.Mutations[#GameConfig.Mutations]
 end
 
-function Conveyor.SpawnBrainrotOnBelt(): Model?
+-- recipeOverride/mutationOverride force a specific spawn (capture staging);
+-- mutationOverride = false forces a plain character. startOffset places it along the belt.
+function Conveyor.SpawnBrainrotOnBelt(recipeOverride, mutationOverride, startOffset: number?): Model?
 	if not lane or #riding >= MAX_ON_BELT then
 		return nil
 	end
-	local tier = pickTier(Conveyor.CurrentTierBand())
-	local recipes = GameConfig.CastByTier[tier.name]
-	local recipe = recipes[math.random(1, #recipes)]
-	local mutation = if Conveyor.MutationStorm then stormMutation() else GameConfig.RollMutation(tier.name, nil, luckBonus())
+	local recipe = recipeOverride
+	local tier
+	if recipe then
+		tier = GameConfig.GetTier(recipe.tier)
+	else
+		tier = pickTier(Conveyor.CurrentTierBand())
+		local recipes = GameConfig.CastByTier[tier.name]
+		recipe = recipes[math.random(1, #recipes)]
+	end
+	local mutation
+	if mutationOverride == false then
+		mutation = nil
+	elseif mutationOverride then
+		mutation = mutationOverride
+	else
+		mutation = if Conveyor.MutationStorm then stormMutation() else GameConfig.RollMutation(tier.name, nil, luckBonus())
+	end
 
 	local model = CharacterFactory.BuildCharacter(recipe, mutation)
 	model:SetAttribute("CharacterId", HttpService:GenerateGUID(false))
@@ -127,7 +142,8 @@ function Conveyor.SpawnBrainrotOnBelt(): Model?
 	model:SetAttribute("Stolen", false)
 	model:SetAttribute("BeltCharacter", true)
 	model.Parent = beltFolder
-	model:PivotTo(CFrame.new(lane.Start + Vector3.new(0, 0.55, 0)))
+	local offset = startOffset or 0
+	model:PivotTo(CFrame.new(lane.Start + lane.Direction * offset + Vector3.new(0, 0.55, 0)))
 
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "BuyPrompt"
@@ -143,8 +159,16 @@ function Conveyor.SpawnBrainrotOnBelt(): Model?
 		end
 	end)
 
-	table.insert(riding, { Model = model, Offset = 0 })
+	table.insert(riding, { Model = model, Offset = offset })
 	return model
+end
+
+-- Empty the belt (capture staging).
+function Conveyor.ClearBelt()
+	for _, entry in riding do
+		entry.Model:Destroy()
+	end
+	table.clear(riding)
 end
 
 -- Take a character off the belt (bought). Returns its ride entry, or nil when it is already gone.

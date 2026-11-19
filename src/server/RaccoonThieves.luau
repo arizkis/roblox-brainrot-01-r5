@@ -152,24 +152,28 @@ function RaccoonThieves.WhackRaccoonThief(player: Player, raccoon)
 	raccoon.DizzyUntil = os.clock() + 0.8
 end
 
-function RaccoonThieves.SpawnRaccoonThief()
-	-- Pick a random unlocked booth with earning characters.
-	local candidates = {}
-	for _, booth in booths do
-		local owner = PlayerSessions.GetBoothOwner(booth.Index)
-		if owner and not StealLock.IsLocked(booth) then
-			for _, entry in GameState.GetPlaced(owner) do
-				if entry.BoothIndex == booth.Index and not entry.Inactive then
-					table.insert(candidates, booth)
-					break
+-- targetBooth (optional) aims the raid at a specific booth (capture staging).
+function RaccoonThieves.SpawnRaccoonThief(targetBooth)
+	local booth = targetBooth
+	if not booth then
+		-- Pick a random unlocked booth with earning characters.
+		local candidates = {}
+		for _, candidate in booths do
+			local owner = PlayerSessions.GetBoothOwner(candidate.Index)
+			if owner and not StealLock.IsLocked(candidate) then
+				for _, entry in GameState.GetPlaced(owner) do
+					if entry.BoothIndex == candidate.Index and not entry.Inactive then
+						table.insert(candidates, candidate)
+						break
+					end
 				end
 			end
 		end
+		if #candidates == 0 then
+			return nil
+		end
+		booth = candidates[math.random(1, #candidates)]
 	end
-	if #candidates == 0 then
-		return nil
-	end
-	local booth = candidates[math.random(1, #candidates)]
 
 	local model = buildRaccoon()
 	model.Parent = workspace
